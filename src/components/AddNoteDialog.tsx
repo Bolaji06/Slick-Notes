@@ -9,34 +9,48 @@ import { Textarea } from './ui/textarea';
 import LoadingButton from './ui/loading-button';
 import { useToast } from './ui/use-toast';
 import { useRouter } from 'next/navigation';
+import { Note } from '@prisma/client';
+import { useState } from 'react';
 
 
 interface AddNoteDialogPros { 
     open: boolean,
     setOpen: (open: boolean) => void,
+    noteToEdit?: Note,
 }
 
-export default function AddNoteDialog({ open, setOpen } : AddNoteDialogPros){
-
-    const router = useRouter()
-
-    const { toast } = useToast()
+export default function AddNoteDialog({ open, setOpen, noteToEdit } : AddNoteDialogPros){
+    const router = useRouter();
+    const { toast } = useToast();
+    const [deleteInProgress, setDeleteInProgress] = useState(false);
 
     const form = useForm<CreateNoteSchema>({
         resolver: zodResolver(createNoteSchema),
         defaultValues: {
-            title: "",
-            content: "",        }
+            title: noteToEdit?.title || "",
+            content: noteToEdit?.content || " ",
+        }
     })
 
     async function onSubmit(input: CreateNoteSchema){
         try {
-            const response = await fetch('/api/notes', {
-                method: 'POST',
-                body: JSON.stringify(input)
-            });
-            if (!response.ok) throw  Error("Status code " + response.status);
-            form.reset();
+            if (noteToEdit){
+                const response =  await fetch('/api/notes', {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        id: noteToEdit.id,
+                        ...input
+                    })
+                })
+                if (!response.ok) throw Error("Status code: " + response.status);
+            }else {
+              const response = await fetch('/api/notes', {
+                    method: 'POST',
+                    body: JSON.stringify(input)
+                });  
+                if (!response.ok) throw  Error("Status code " + response.status);
+                form.reset();
+            } 
             router.refresh();
             setOpen(false);
             
@@ -50,12 +64,33 @@ export default function AddNoteDialog({ open, setOpen } : AddNoteDialogPros){
         //alert(input)
     }
 
+    async function deleteNote(){
+        if (!noteToEdit) return;
+        setDeleteInProgress(true);
+        try {
+            const response = await fetch('/api/notes', {
+                method: 'DELETE',
+                body: JSON.stringify({
+                    id: noteToEdit.id,
+                })
+            })
+            if (!response.ok) throw Error("Status code: " + response.status);
+            router.refresh();
+            setOpen(false);
+
+        }catch(error){
+            console.log(error);
+        } finally{
+            setDeleteInProgress(false)
+        }
+    }
+
     return (
         <>
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add Note</DialogTitle>
+                        <DialogTitle>{noteToEdit ? "Edit Note" : "Add Note"}</DialogTitle>
                     </DialogHeader>
 
                     <Form {...form}>
@@ -87,6 +122,16 @@ export default function AddNoteDialog({ open, setOpen } : AddNoteDialogPros){
                                     </FormItem>
                                 )}/>
                             <DialogFooter>
+                                { noteToEdit && (
+                                <LoadingButton
+                                    variant={"destructive"}
+                                    isloading={deleteInProgress}
+                                    disabled={form.formState.isSubmitting}
+                                    onClick={deleteNote}
+                                    type='button'>
+                                        
+                                    Delete Note
+                                </LoadingButton>)}
                                 <LoadingButton type='submit' isloading={form.formState.isSubmitting}>
                                     Submit
                                 </LoadingButton>

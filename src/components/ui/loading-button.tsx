@@ -10,7 +10,7 @@ export default function LoadingButton({ children, isloading, ...props} : Loading
 
     return (
         <>
-            <Button {...props} disabled={props.disabled || isloading} className="w-full">
+            <Button {...props} disabled={props.disabled || isloading} className="">
                 { isloading && <Loader2 className="w-4 h-4 animate-spin mr-2"/>}
                 {children}
             </Button>
